@@ -1,11 +1,17 @@
-# cpp-project
+# IMS T2: SHO Model výroby v oblasti potravinářství
 
 This is an implementation of a SIMLIB project for IMS 2025/2026.
+
+## Authors
+Anastasiia Chumachenko - xchuma00
+
+Jakub Phan - xphanj00
 
 ## Project Structure
 
 ```
 ims_pringles
+├── simlib
 ├── src
 │   ├── main.cpp          # Main application
 ├── Makefile              # Build instructions
@@ -28,17 +34,5 @@ This will compile the source files and create the executable.
 After building the project, you can run the application using:
 
 ```
-./cpp-project
+./simulation_executable
 ```
-
-## Running Tests
-
-To run the unit tests, you can use the following command:
-
-```
-make test
-```
-
-## Contributing
-
-Feel free to submit issues or pull requests if you would like to contribute to this project.
