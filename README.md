@@ -7,6 +7,8 @@ Anastasiia Chumachenko - xchuma00
 
 Jakub Phan - xphanj00
 
+## Project DEADLINE: 7.12.2025
+
 ## Project Structure
 
 ```
