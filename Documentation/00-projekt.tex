@@ -1,0 +1,28 @@
+\documentclass[]{sablona}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+
+% implicitní cesta k obrázkům
+\graphicspath{{fig/}}
+\usepackage[export]{adjustbox}
+\usepackage{blkarray}
+% hlavička 
+% příkaz logo - vkládá logo fakulty dle zvoleného jazyka
+\title{\logo\\Modelování a simulace\\T2: SHO Model výroby v oblasti potravinářství\\Výroba bramborových chipsů}
+
+\author{Jakub Phan, xphanj00\\Anastasiia Chumachenko, xchuma00}
+\date{\today} % today - dnešní datum
+\begin{document}
+	\maketitle
+    \newpage
+	\tableofcontents
+    \newpage
+	
+
+	%% vložení jednotlivých příkladů
+	\input{01-pr1.tex} \newpage
+	
+\end{document}
