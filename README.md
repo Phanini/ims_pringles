@@ -9,6 +9,11 @@ Jakub Phan - xphanj00
 
 ## Project DEADLINE: 7.12.2025
 
+## Links
+Overleaf: https://www.overleaf.com/project/6900a1f55445bd9c278a5f57
+
+Drawio: drive.google.com/file/d/1YjiMbkF50VH4BYy9jbIU7HlKFdgEsFBd/view?usp=sharing
+
 ## Project Structure
 
 ```
