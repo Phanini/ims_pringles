@@ -9,34 +9,36 @@
  */
 
  /* TODO LIST:
-    - ALL the parameters are just made up numbers for Store, Enter and Leaves -> do research and find +- realistic values
+    - Implement potato mass lost during the process of manufacturing based on documentation (the constants are defined lower)
+    - Implement timed transitions based on Petri's net diagram
+    - DEBATE: Do we still wanna go for different type of moisture?
  */
 
 #include <iostream>
 #include <simlib.h>
 
-Store Washer("Washer", 100);
-Store Peeler("Peeler", 100);
-Store Blancher("Blancher", 100);
-Store Cutter("Cutter", 100);
-Store Cooker("Cooker", 100);
-Store Masher("Masher", 100);
-Store Dryer("Dryer", 100);
-Store Miller("Miller", 100);
-Store Mixer("Mixer", 100);
-Store Roller("Roller", 100);
-Store DoughCutter("DoughCutter", 100);
-Store Fryer("Fryer", 100);
+//CONSTANTS FOR MASS LOST DURING PROCEDURE
+double M_PEEL = 0.9;
+double M_CUT = 0.9;
+double M_DRY = 0.8;
+double M_FRY = 0.6;
 
-Store SeasonerA("Seasoner", 100);
-Store SeasonerB("Seasoner", 100);
-Store SeasonerC("Seasoner", 100);
-Store SeasonerD("Seasoner", 100);
+Store Washer("Washer", 1);
+Store Peeler("Peeler", 1);
+Store Blancher("Blancher", 1);
+Store Cutter("Cutter", 1);
+Store Dryer("Dryer", 1);
+Store Fryer("Fryer", 1);
 
-Store PackagerA("Packager", 100);
-Store PackagerB("Packager", 100);
-Store PackagerC("Packager", 100);
-Store PackagerD("Packager", 100);
+Store SeasonerA("Seasoner", 1);
+Store SeasonerB("Seasoner", 1);
+Store SeasonerC("Seasoner", 1);
+Store SeasonerD("Seasoner", 1);
+
+Store PackagerA("Packager", 1);
+Store PackagerB("Packager", 1);
+Store PackagerC("Packager", 1);
+Store PackagerD("Packager", 1);
 
 // STATISTICS
 Histogram hTotalTime("Total time per potato batch", 0, 50, 25);
@@ -63,9 +65,7 @@ class Potato : public Process {
             Enter(Washer, 1);      Wait(Uniform(0.5, 1.0));      Leave(Washer, 1);
             Enter(Peeler, 1);      Wait(Uniform(0.5, 1.0));      Leave(Peeler, 1);
             Enter(Blancher, 1);    Wait(Uniform(0.5, 1.0));      Leave(Blancher, 1);
-            Enter(Cutter, 1);      Wait(Uniform(0.3, 0.7));      Leave(Cutter, 1);
             Enter(Cooker, 1);      Wait(Uniform(1.0, 2.0));      Leave(Cooker, 1);
-            Enter(Masher, 1);      Wait(Uniform(0.5, 1.5));      Leave(Masher, 1);
 
             // Drying (time varies based on moisture content)
             Enter(Dryer, 1);
@@ -73,10 +73,6 @@ class Potato : public Process {
             Wait(dryingTime);
             Leave(Dryer, 1); 
 
-            Enter(Miller, 1);      Wait(Uniform(0.5, 1.0));      Leave(Miller, 1);
-            Enter(Mixer, 1);       Wait(Uniform(0.5, 1.0));      Leave(Mixer, 1);
-            Enter(Roller, 1);      Wait(Uniform(0.5, 1.0));      Leave(Roller, 1);
-            Enter(DoughCutter, 1); Wait(Uniform(0.5, 1.0));      Leave(DoughCutter, 1);
             Enter(Fryer, 1);       Wait(Uniform(1.0, 2.0));      Leave(Fryer, 1);
 
 
