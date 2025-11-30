@@ -8,6 +8,12 @@
 
     #include <iostream>
     #include <simlib.h>
+/*
+    todo:
+    - Add spoiled check after seasoning?
+    - adjust Store capacities to grams
+*/
+
 
     // --------------------- MASS & TIMING CONSTANTS ---------------------
 
