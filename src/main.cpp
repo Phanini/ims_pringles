@@ -36,18 +36,18 @@
     Store Washer("Washer", 400);
     Store Peeler("Peeler", 534);
     Store Cutter("Cutter", 67);
-    Store Dryer("Dryer", 600);
-    Store Fryer("Fryer", 2400);
+    Store Dryer("Dryer", 70000); // 70kg Dryer capacity
+    Store Fryer("Fryer", 225000); // 225kg Fryer capacity
 
-    Store SeasonerA("Seasoner", 40);
-    Store SeasonerB("Seasoner", 40);
-    Store SeasonerC("Seasoner", 40);
-    Store SeasonerD("Seasoner", 40);
+    Store SeasonerA("Seasoner", 400);
+    Store SeasonerB("Seasoner", 400);
+    Store SeasonerC("Seasoner", 400);
+    Store SeasonerD("Seasoner", 400);
 
-    Store PackagerA("Packager", 100);
-    Store PackagerB("Packager", 100);
-    Store PackagerC("Packager", 100);
-    Store PackagerD("Packager", 100);
+    Store PackagerA("Packager", 1000);
+    Store PackagerB("Packager", 1000);
+    Store PackagerC("Packager", 1000);
+    Store PackagerD("Packager", 1000);
 
     // ------------------------- STATISTICS -------------------------
 
@@ -98,42 +98,42 @@
             weight *= M_CUT;
 
             // --- Drying: 30–60 s, -20 % weight ---
-            Enter(Dryer, 1);
+            Enter(Dryer, weight);
             double dryingTime = Uniform(30.0, 60.0);
             Wait(dryingTime);
             Leave(Dryer, 1);
             weight *= M_DRY;
 
             // --- Frying: 3 min = 180 s, -60 % weight ---
-            Enter(Fryer, 1);
+            Enter(Fryer, weight);
             Wait(180.0);
-            Leave(Fryer, 1);
+            Leave(Fryer, weight);
             weight *= M_FRY;
 
             // --- Seasoning: 1–5 s ---
             r = Random();
             double seasonTime = Uniform(1.0, 5.0);
             if (r < 0.25) {
-                Enter(SeasonerA, 1); Wait(seasonTime); Leave(SeasonerA, 1);
+                Enter(SeasonerA, weight); Wait(seasonTime); Leave(SeasonerA, weight);
             } else if (r < 0.5) {
-                Enter(SeasonerB, 1); Wait(seasonTime); Leave(SeasonerB, 1);
+                Enter(SeasonerB, weight); Wait(seasonTime); Leave(SeasonerB, weight);
             } else if (r < 0.75) {
-                Enter(SeasonerC, 1); Wait(seasonTime); Leave(SeasonerC, 1);
+                Enter(SeasonerC, weight); Wait(seasonTime); Leave(SeasonerC, weight);
             } else {
-                Enter(SeasonerD, 1); Wait(seasonTime); Leave(SeasonerD, 1);
+                Enter(SeasonerD, weight); Wait(seasonTime); Leave(SeasonerD, weight);
             }
 
             // --- Packaging: 5–10 s ---
             r = Random();
             double packTime = Uniform(5.0, 10.0);
             if (r < 0.25) {
-                Enter(PackagerA, 1); Wait(packTime); Leave(PackagerA, 1);
+                Enter(PackagerA, weight); Wait(packTime); Leave(PackagerA, weight);
             } else if (r < 0.5) {
-                Enter(PackagerB, 1); Wait(packTime); Leave(PackagerB, 1);
+                Enter(PackagerB, weight); Wait(packTime); Leave(PackagerB, weight);
             } else if (r < 0.75) {
-                Enter(PackagerC, 1); Wait(packTime); Leave(PackagerC, 1);
+                Enter(PackagerC, weight); Wait(packTime); Leave(PackagerC, weight);
             } else {
-                Enter(PackagerD, 1); Wait(packTime); Leave(PackagerD, 1);
+                Enter(PackagerD, weight); Wait(packTime); Leave(PackagerD, weight);
             }
 
             sProcessed(1);
@@ -181,10 +181,10 @@
         //hTotalTime.Output();
 
         Washer.Output(); Peeler.Output(); 
-        Cutter.Output();/*
+        Cutter.Output();
         Dryer.Output(); Fryer.Output();
         SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
         PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();
-        */
+        
         return 0;
     }
