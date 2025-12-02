@@ -1,6 +1,6 @@
 #include <iostream>
 #include <simlib.h>
-#include "FryerBatch.hpp"
+#include <iomanip>
 
 // --------------------- MASS & TIMING CONSTANTS ---------------------
 const double M_PEEL = 0.90;
@@ -11,6 +11,8 @@ const double M_FRY  = 0.40;
 const double MEAN_INTERARRIVAL = 0.075;
 const double SIM_TIME = 3600.0;
 
+int after_fry = 0;
+int before_fry = 0;
 double finalmass = 0.0;
 
 // --------------------------- STORES ---------------------------
@@ -25,10 +27,10 @@ Store SeasonerB("Seasoner", 400);
 Store SeasonerC("Seasoner", 400);
 Store SeasonerD("Seasoner", 400);
 
-Store PackagerA("Packager", 1000);
-Store PackagerB("Packager", 1000);
-Store PackagerC("Packager", 1000);
-Store PackagerD("Packager", 1000);
+Store PackagerA("Packager", 400);
+Store PackagerB("Packager", 400);
+Store PackagerC("Packager", 400);
+Store PackagerD("Packager", 400);
 
 // ------------------------- STATISTICS -------------------------
 Histogram hTotalTime("Total time per potato batch", 0, 1200, 24);
@@ -38,6 +40,44 @@ Stat sFinalMass("Final mass of processed potatoes");
 Stat sPotatoesGenerated("Total potatoes generated");
 
 // -------------------------- PROCESS ---------------------------
+
+class FryerBatch : public Process {
+public:
+    static double current_batch_mass;
+    static const double BATCH_TARGET;   // in grams
+    static Queue waiting;               // potatoes waiting for a batch
+    static bool active;                 // whether fryer controller is running
+
+    void Behavior() override {
+        active = true;
+
+        // Wait until enough mass has accumulated
+        while (current_batch_mass < BATCH_TARGET) {
+            Passivate(); // wait until some potato wakes us
+        }
+
+        // ---- Start Frying ----
+        Enter(Fryer, BATCH_TARGET);   // occupy fryer space
+        Wait(180);                    // 3 minutes
+        Leave(Fryer, BATCH_TARGET);   // release capacity
+
+        // Reactivate ALL potatoes in this batch
+        while (!waiting.Empty()) {
+            Process *p = (Process*) waiting.GetFirst();
+            p->Activate();
+        }
+
+        // Reset batch
+        current_batch_mass = 0;
+        active = false;
+    }
+};
+
+double FryerBatch::current_batch_mass = 0;
+const double FryerBatch::BATCH_TARGET = 225000.0; // 225 kg
+Queue FryerBatch::waiting;
+bool FryerBatch::active = false;
+
 class Potato : public Process {
 private:
     double weight;
@@ -77,6 +117,7 @@ public:
         FryerBatch::current_batch_mass += weight;
 
         // Enter waiting queue
+        before_fry += 1;
         Into(FryerBatch::waiting);
 
         // If fryer not active & enough mass → wake it
@@ -93,7 +134,7 @@ public:
 
         // After frying
         weight *= M_FRY;
-
+        after_fry += 1;
         // Seasoning
         double r = Random();
         double seasonTime = Uniform(1,5);
@@ -147,14 +188,17 @@ int main() {
     Run();
 
     std::cout << "\nSimulation complete.\n";
+    std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";
+    std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";
 
     sProcessed.Output();
     sSpoiled.Output();
     sPotatoesGenerated.Output();
-    std::cout << "Final mass: " << finalmass << " g\n";
 
     Washer.Output(); Peeler.Output(); Cutter.Output();
-    Dryer.Output(); Fryer.Output();
+    Dryer.Output(); 
+    Fryer.Output(); FryerBatch::waiting.Output();
+
     SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
     PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();
 }
