@@ -135,9 +135,10 @@ public:
         // After frying
         weight *= M_FRY;
         after_fry += 1;
+        
         // Seasoning
         double r = Random();
-        double seasonTime = Uniform(1,5);
+        double seasonTime = Uniform(1,4);
         if (r < 0.25) {
             Enter(SeasonerA, weight); Wait(seasonTime); Leave(SeasonerA, weight);
         } else if (r < 0.5) {
@@ -149,7 +150,7 @@ public:
         }
 
         // Packaging
-        double packTime = Uniform(5,10);
+        double packTime = Uniform(2,3);
         r = Random();
         if (r < 0.25) {
             Enter(PackagerA, weight); Wait(packTime); Leave(PackagerA, weight);
