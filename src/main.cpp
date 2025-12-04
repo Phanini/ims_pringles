@@ -15,13 +15,24 @@ int after_fry = 0;
 int before_fry = 0;
 double finalmass = 0.0;
 
-const bool IMPROVEMENT_FRYER = true;
 
-// ------------------ QC PARAMETERS & STORES/STATISTICS ------------------
-const double P_DEFECT_TRUE = 0.02;       // true fraction defective after seasoning
-const double SAMPLE_RATE = 0.05;        // 1.0 == inspect all, 0.05 == inspect 5% randomly
-const double QC_TIME_MIN = 1.0;         // inspection time (sec)
-const double QC_TIME_MAX = 2.0;
+// SWITCHES FOR IMPROVEMENTS
+const bool IMPROVEMENT_FRYER = false;
+const bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
+
+
+//---------- QC------------
+const double P_DEFECT_TRUE = 0.02; // 2% of potatoes have defects
+// --------- MANUAL QC PARAMETERS ---------
+const double MANUAL_SAMPLE_RATE = 0.05;    // 5% checked
+const double MANUAL_ACCURACY    = 0.90;    // 90% detection of defects
+const double MANUAL_QC_TIME_MIN = 1.0;
+const double MANUAL_QC_TIME_MAX = 2.0;
+
+// --------- AUTOMATED QC PARAMETERS ---------
+const double AUTO_ACCURACY      = 0.995;   // 99.5% detection
+const double AUTO_QC_TIME       = 0.15;    // very fast (seconds)
+
 
 
 // Stats
@@ -291,35 +302,64 @@ public:
             Enter(SeasonerD, weight); Wait(seasonTime); Leave(SeasonerD, weight);
         }
 
-        // ----------------- QUALITY CONTROL (sampling + imperfect sensor) -----------------
+       // ================= QUALITY CONTROL =================
         sTotalBeforeQC(1);
-        bool inspected = (Random() < SAMPLE_RATE);   // Inspector samples 5% of all incomming potatoes
-        bool is_defect = (Random() < P_DEFECT_TRUE); // 2% of all potatoes are defective
-        if (inspected) {
-            sQCInspected(1);
-            if (r < 0.25) {
-                Enter(QCInspectorA, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorA, 1);
-            } else if (r < 0.5) {
-                Enter(QCInspectorB, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorB, 1);
-            } else if (r < 0.75) {
-                Enter(QCInspectorC, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorC, 1);
+        bool is_defect = (Random() < P_DEFECT_TRUE);
+
+        if (!AUTOMATED_QC) {
+            // ========= MANUAL HUMAN INSPECTION =========
+            bool inspected = (Random() < MANUAL_SAMPLE_RATE);
+
+            if (inspected) {
+                sQCInspected(1);
+
+                // Choose inspector
+                if (r < 0.25) {
+                    Enter(QCInspectorA, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorA, 1);
+                } else if (r < 0.5) {
+                    Enter(QCInspectorB, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorB, 1);
+                } else if (r < 0.75) {
+                    Enter(QCInspectorC, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorC, 1);
+                } else {
+                    Enter(QCInspectorD, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorD, 1);
+                }
+
+                bool detected = (Random() < MANUAL_ACCURACY);
+
+                if (is_defect && detected) {
+                    sQCRejected(1);
+                    return;   // removed
+                }
+
+                if (!is_defect && detected) {
+                    sQCNoDefect(1); // false reject
+                }
+
             } else {
-                Enter(QCInspectorD, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorD, 1);
+                if (is_defect) sQCEscapes(1); // defect passed because not inspected
             }
-        
-            // 90% of what inspector samples is TRUE defective
-            bool inspector_sensitivity = (Random() < 0.90);
-            if (inspector_sensitivity) {
-                sQCRejected(1);
-                return; // removed from line (do not package)
-            } else { // False Positive: Inspector thought it was defective but it wasn't
-                sQCNoDefect(1);
-            }
+
         } else {
-            // Not inspected and is DEFECT
-            if (is_defect) sQCEscapes(1);
+            // ========= AUTOMATED MACHINE INSPECTION =========
+            sQCInspected(1);
+
+            // Machine vision delay (very small)
+            Wait(AUTO_QC_TIME);
+
+            bool detected = (Random() < AUTO_ACCURACY);
+
+            if (is_defect && detected) {
+                sQCRejected(1);
+                return;   // removed by machine
+            }
+
+            if (!is_defect && detected == false) {
+                sQCEscapes(1); // extremely rare miss
+            }
         }
+
         sTotalAFTERQC(1);
+
 
         // Packaging
         double packTime = Uniform(2,3);
@@ -369,7 +409,7 @@ int main() {
     FryerA.Output();
     FryerB.Output();
     
-        /*
+        
     sProcessed.Output();
     sSpoiled.Output();
     sPotatoesGenerated.Output();
@@ -378,7 +418,7 @@ int main() {
     sQCInspected.Output();
     sQCRejected.Output();
     sQCNoDefect.Output();
-    sQCEscapes.Output();*/
+    sQCEscapes.Output();
 
     /*Washer.Output(); Peeler.Output(); Cutter.Output();
     Dryer.Output(); 
