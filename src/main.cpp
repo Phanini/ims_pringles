@@ -15,6 +15,8 @@ int after_fry = 0;
 int before_fry = 0;
 double finalmass = 0.0;
 
+const bool IMPROVEMENT_FRYER = true;
+
 // ------------------ QC PARAMETERS & STORES/STATISTICS ------------------
 const double P_DEFECT_TRUE = 0.02;       // true fraction defective after seasoning
 const double SAMPLE_RATE = 0.05;        // 1.0 == inspect all, 0.05 == inspect 5% randomly
@@ -37,7 +39,8 @@ Store Peeler("Peeler", 534);
 Store Cutter("Cutter", 67);
 Store Dryer("Dryer", 70000);      // 70 kg raw cut chips
 Store Fryer("Fryer", 225000);     // 225 kg batch capacity
-
+Store FryerA("FryerA", 112500);   // Backup fryer
+Store FryerB("FryerB", 112500);   // Backup fryer
 Store SeasonerA("Seasoner", 400);
 Store SeasonerB("Seasoner", 400);
 Store SeasonerC("Seasoner", 400);
@@ -99,6 +102,74 @@ const double FryerBatch::BATCH_TARGET = 225000.0; // 225 kg
 Queue FryerBatch::waiting;
 bool FryerBatch::active = false;
 
+class FryerBatchA : public Process {
+public:
+    static double current_batch_mass;
+    static const double BATCH_TARGET;
+    static Queue waiting;
+    static bool active;
+
+    void Behavior() override {
+        active = true;
+
+        while (current_batch_mass < BATCH_TARGET)
+            Passivate();
+
+        Enter(FryerA, BATCH_TARGET);
+        Wait(180);
+        Leave(FryerA, BATCH_TARGET);
+
+        while (!waiting.Empty()) {
+            Process *p = (Process*) waiting.GetFirst();
+            p->Activate();
+        }
+
+        current_batch_mass = 0;
+        active = false;
+    }
+};
+
+double FryerBatchA::current_batch_mass = 0;
+const double FryerBatchA::BATCH_TARGET = 112500.0; // HALF of 225kg
+Queue FryerBatchA::waiting;
+bool FryerBatchA::active = false;
+
+
+// ------------------------------
+
+class FryerBatchB : public Process {
+public:
+    static double current_batch_mass;
+    static const double BATCH_TARGET;
+    static Queue waiting;
+    static bool active;
+
+    void Behavior() override {
+        active = true;
+
+        while (current_batch_mass < BATCH_TARGET)
+            Passivate();
+
+        Enter(FryerB, BATCH_TARGET);
+        Wait(180);
+        Leave(FryerB, BATCH_TARGET);
+
+        while (!waiting.Empty()) {
+            Process *p = (Process*) waiting.GetFirst();
+            p->Activate();
+        }
+
+        current_batch_mass = 0;
+        active = false;
+    }
+};
+
+double FryerBatchB::current_batch_mass = 0;
+const double FryerBatchB::BATCH_TARGET = 112500.0;
+Queue FryerBatchB::waiting;
+bool FryerBatchB::active = false;
+
+
 class Potato : public Process {
 private:
     double weight;
@@ -134,24 +205,74 @@ public:
         Leave(Dryer, weight);   // <–– FIXED (was 1)
         weight *= M_DRY;
 
-        // ---- Fryer batch accumulation ----
-        FryerBatch::current_batch_mass += weight;
+        if (!IMPROVEMENT_FRYER) {
+            // ---- Fryer batch accumulation ----
+            FryerBatch::current_batch_mass += weight;
 
-        // Enter waiting queue
-        before_fry += 1;
-        Into(FryerBatch::waiting);
+            // Enter waiting queue
+            before_fry += 1;
+            Into(FryerBatch::waiting);
 
-        // If fryer not active & enough mass → wake it
-        if (!FryerBatch::active &&
-            FryerBatch::current_batch_mass >= FryerBatch::BATCH_TARGET) 
-        {
-            FryerBatch::active = true;
-            FryerBatch *fb = new FryerBatch;
-            fb->Activate();
+            // If fryer not active & enough mass → wake it
+            if (!FryerBatch::active &&
+                FryerBatch::current_batch_mass >= FryerBatch::BATCH_TARGET) 
+            {
+                FryerBatch::active = true;
+                FryerBatch *fb = new FryerBatch;
+                fb->Activate();
+            }
+
+            // Wait until fryer batch controller wakes us
+            Passivate();
+        } else {
+            bool A_can_fill = !FryerBatchA::active;
+            bool B_can_fill = !FryerBatchB::active;
+
+            if (A_can_fill && !B_can_fill) {
+                // Fill A only
+                FryerBatchA::current_batch_mass += weight;
+                Into(FryerBatchA::waiting);
+
+                if (FryerBatchA::current_batch_mass >= FryerBatchA::BATCH_TARGET) {
+                    FryerBatchA::active = true;
+                    (new FryerBatchA)->Activate();
+                }
+
+            } 
+            else if (!A_can_fill && B_can_fill) {
+                // Fill B only
+                FryerBatchB::current_batch_mass += weight;
+                Into(FryerBatchB::waiting);
+
+                if (FryerBatchB::current_batch_mass >= FryerBatchB::BATCH_TARGET) {
+                    FryerBatchB::active = true;
+                    (new FryerBatchB)->Activate();
+                }
+
+            } 
+            else {
+                // Both inactive OR both active → balance by smaller queue
+                if ((FryerBatchA::waiting.Length() >= FryerBatchB::waiting.Length() && ((FryerBatchA::current_batch_mass + weight) < FryerBatchA::BATCH_TARGET))) {
+                    FryerBatchA::current_batch_mass += weight;
+                    Into(FryerBatchA::waiting);
+
+                    if (!FryerBatchA::active && FryerBatchA::current_batch_mass >= FryerBatchA::BATCH_TARGET) {
+                        FryerBatchA::active = true;
+                        (new FryerBatchA)->Activate();
+                    }
+                } 
+                else {
+                    FryerBatchB::current_batch_mass += weight;
+                    Into(FryerBatchB::waiting);
+
+                    if (!FryerBatchB::active && FryerBatchB::current_batch_mass >= FryerBatchB::BATCH_TARGET) {
+                        FryerBatchB::active = true;
+                        (new FryerBatchB)->Activate();
+                    }
+                }
+            }
+            Passivate();
         }
-
-        // Wait until fryer batch controller wakes us
-        Passivate();
 
         // After frying
         weight *= M_FRY;
@@ -240,8 +361,14 @@ int main() {
 
     std::cout << "\nSimulation complete.\n";
     std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";
-    std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";
-
+    if (!IMPROVEMENT_FRYER){    
+        std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";}
+    else {
+        std::cout << "A: " << FryerBatchA::waiting.Length() << "B: " << FryerBatchB::waiting.Length() << " potatoes waiting for frying combined AB.\n";}
+    FryerA.Output();
+    FryerB.Output();
+    
+        /*
     sProcessed.Output();
     sSpoiled.Output();
     sPotatoesGenerated.Output();
@@ -250,10 +377,11 @@ int main() {
     sQCInspected.Output();
     sQCRejected.Output();
     sQCNoDefect.Output();
-    sQCEscapes.Output();
+    sQCEscapes.Output();*/
 
     /*Washer.Output(); Peeler.Output(); Cutter.Output();
     Dryer.Output(); 
+
     Fryer.Output(); FryerBatch::waiting.Output();
 
     SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
