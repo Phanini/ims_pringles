@@ -15,6 +15,22 @@ int after_fry = 0;
 int before_fry = 0;
 double finalmass = 0.0;
 
+// ------------------ QC PARAMETERS & STORES/STATISTICS ------------------
+const double P_DEFECT_TRUE = 0.02;       // true fraction defective after seasoning
+const double SAMPLE_RATE = 0.05;        // 1.0 == inspect all, 0.05 == inspect 5% randomly
+const double QC_TIME_MIN = 1.0;         // inspection time (sec)
+const double QC_TIME_MAX = 2.0;
+
+
+// Stats
+Stat sQCInspected("QC: inspected");
+Stat sTotalBeforeQC("QC: TOTAL before QC");
+Stat sTotalAFTERQC("QC: TOTAL that were QC or bypassed");
+Stat sQCRejected("QC: rejections");
+Stat sQCNoDefect("QC: inspected but no defect found");
+Stat sQCEscapes("QC: defects escaped (undetected)");
+
+
 // --------------------------- STORES ---------------------------
 Store Washer("Washer", 400);
 Store Peeler("Peeler", 534);
@@ -26,6 +42,11 @@ Store SeasonerA("Seasoner", 400);
 Store SeasonerB("Seasoner", 400);
 Store SeasonerC("Seasoner", 400);
 Store SeasonerD("Seasoner", 400);
+
+Store QCInspectorA("QC_A", 1);
+Store QCInspectorB("QC_B", 1);
+Store QCInspectorC("QC_C", 1);
+Store QCInspectorD("QC_D", 1);
 
 Store PackagerA("Packager", 400);
 Store PackagerB("Packager", 400);
@@ -149,9 +170,38 @@ public:
             Enter(SeasonerD, weight); Wait(seasonTime); Leave(SeasonerD, weight);
         }
 
+        // ----------------- QUALITY CONTROL (sampling + imperfect sensor) -----------------
+        sTotalBeforeQC(1);
+        bool inspected = (Random() < SAMPLE_RATE);   // Inspector samples 5% of all incomming potatoes
+        bool is_defect = (Random() < P_DEFECT_TRUE); // 2% of all potatoes are defective
+        if (inspected) {
+            sQCInspected(1);
+            if (r < 0.25) {
+                Enter(QCInspectorA, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorA, 1);
+            } else if (r < 0.5) {
+                Enter(QCInspectorB, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorB, 1);
+            } else if (r < 0.75) {
+                Enter(QCInspectorC, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorC, 1);
+            } else {
+                Enter(QCInspectorD, 1); Wait(Uniform(QC_TIME_MIN, QC_TIME_MAX));; Leave(QCInspectorD, 1);
+            }
+        
+            // 90% of what inspector samples is TRUE defective
+            bool inspector_sensitivity = (Random() < 0.90);
+            if (inspector_sensitivity) {
+                sQCRejected(1);
+                return; // removed from line (do not package)
+            } else { // False Positive: Inspector thought it was defective but it wasn't
+                sQCNoDefect(1);
+            }
+        } else {
+            // Not inspected and is DEFECT
+            if (is_defect) sQCEscapes(1);
+        }
+        sTotalAFTERQC(1);
+
         // Packaging
         double packTime = Uniform(2,3);
-        r = Random();
         if (r < 0.25) {
             Enter(PackagerA, weight); Wait(packTime); Leave(PackagerA, weight);
         } else if (r < 0.5) {
@@ -195,11 +245,17 @@ int main() {
     sProcessed.Output();
     sSpoiled.Output();
     sPotatoesGenerated.Output();
+    sTotalBeforeQC.Output();
+    sTotalAFTERQC.Output();
+    sQCInspected.Output();
+    sQCRejected.Output();
+    sQCNoDefect.Output();
+    sQCEscapes.Output();
 
-    Washer.Output(); Peeler.Output(); Cutter.Output();
+    /*Washer.Output(); Peeler.Output(); Cutter.Output();
     Dryer.Output(); 
     Fryer.Output(); FryerBatch::waiting.Output();
 
     SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
-    PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();
+    PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();*/
 }
