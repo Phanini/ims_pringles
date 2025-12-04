@@ -354,6 +354,7 @@ class PotatoGenerator : public Event {
 // ---------------------------- MAIN ----------------------------
 int main() {
     std::cout << "=== IMS Potato Chip Production Simulation ===\n";
+    RandomSeed(time(nullptr)); // Seed random number generator
 
     Init(0, SIM_TIME);
     (new PotatoGenerator)->Activate();
