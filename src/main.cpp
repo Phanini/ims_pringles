@@ -11,74 +11,56 @@
 #include <simlib.h>
 #include <iomanip>
 
-// --------------------- MASS & TIMING CONSTANTS ---------------------
+// SWITCHES FOR IMPROVEMENTS
+const bool IMPROVEMENT_FRYER = true;
+const bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
+
+// CONSTANTS
+const double MEAN_INTERARRIVAL = 0.075;
+const double SIM_TIME = 3600.0;
+
 const double M_PEEL = 0.90;
 const double M_CUT  = 0.90;
 const double M_DRY  = 0.75;
 const double M_FRY  = 0.5;
 
-const double MEAN_INTERARRIVAL = 0.075;
-const double SIM_TIME = 3600.0;
-
-int after_fry = 0;
-int before_fry = 0;
-double finalmass = 0.0;
-
-
-// SWITCHES FOR IMPROVEMENTS
-const bool IMPROVEMENT_FRYER = true;
-const bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
-
-
-//---------- QC------------
 const double P_DEFECT_TRUE = 0.02; // 2% of potatoes have defects
-// --------- MANUAL QC PARAMETERS ---------
-const double MANUAL_SAMPLE_RATE = 0.05;    // 5% checked
-const double MANUAL_ACCURACY    = 0.90;    // 90% detection of defects
 const double MANUAL_QC_TIME_MIN = 1.0;
 const double MANUAL_QC_TIME_MAX = 2.0;
+const double AUTO_ACCURACY      = 0.995; 
+const double AUTO_QC_TIME       = 0.15;
 
-// --------- AUTOMATED QC PARAMETERS ---------
-const double AUTO_ACCURACY      = 0.995;   // 99.5% detection
-const double AUTO_QC_TIME       = 0.15;    // very fast (seconds)
-
-
-
-// Stats
+// STATISTICS
 Stat sQCInspected("QC: inspected");
 Stat sTotalBeforeQC("QC: TOTAL before QC");
 Stat sTotalAFTERQC("QC: TOTAL that were QC or bypassed");
 Stat sQCRejected("QC: rejections");
-Stat sQCNoDefect("QC: inspected but no defect found");
 Stat sQCEscapes("QC: defects escaped (undetected)");
+double finalmass = 0.0;
 
 
-// --------------------------- STORES ---------------------------
+// STORES 
 Store Washer("Washer", 400);
 Store Peeler("Peeler", 534);
 Store Cutter("Cutter", 67);
-Store Dryer("Dryer", 70000);      // 70 kg raw cut chips
-Store Fryer("Fryer", 225000);     // 225 kg batch capacity
-Store FryerA("FryerA", 112500);   // Backup fryer
-Store FryerB("FryerB", 112500);   // Backup fryer
-Store SeasonerA("Seasoner", 800);
-Store SeasonerB("Seasoner", 800);
-
+Store Dryer("Dryer", 70000);    
+Store Fryer("Fryer", 225000);     
+Store FryerA("FryerA", 112500);  
+Store FryerB("FryerB", 112500);  
+Store SeasonerA("SeasonerA", 800);
+Store SeasonerB("SeasonerB", 800);
 Store QCInspectorA("QC_A", 1);
 Store QCInspectorB("QC_B", 1);
-
 Store PackagerA("Packager", 800);
 Store PackagerB("Packager", 800);
 
-// ------------------------- STATISTICS -------------------------
+// STATISTICS 
 Histogram hTotalTime("Total time per potato batch", 0, 1200, 24);
 Stat sProcessed("Processed (good) potatoes");
 Stat sSpoiled("Spoiled potatoes");
-Stat sFinalMass("Final mass of processed potatoes");
 Stat sPotatoesGenerated("Total potatoes generated");
 
-// -------------------------- PROCESS ---------------------------
-
+// PROCESSES
 class FryerBatch : public Process {
 public:
     static double current_batch_mass;
@@ -94,10 +76,10 @@ public:
             Passivate(); // wait until some potato wakes us
         }
 
-        // ---- Start Frying ----
-        Enter(Fryer, BATCH_TARGET);   // occupy fryer space
-        Wait(180);                    // 3 minutes
-        Leave(Fryer, BATCH_TARGET);   // release capacity
+        // Start frying 
+        Enter(Fryer, BATCH_TARGET);
+        Wait(180);                    // Fry for 3 minutes
+        Leave(Fryer, BATCH_TARGET);
 
         // Reactivate ALL potatoes in this batch
         while (!waiting.Empty()) {
@@ -115,6 +97,7 @@ double FryerBatch::current_batch_mass = 0;
 const double FryerBatch::BATCH_TARGET = 225000.0; // 225 kg
 Queue FryerBatch::waiting;
 bool FryerBatch::active = false;
+
 
 class FryerBatchA : public Process {
 public:
@@ -143,13 +126,11 @@ public:
     }
 };
 
+
 double FryerBatchA::current_batch_mass = 0;
 const double FryerBatchA::BATCH_TARGET = 112500.0; // HALF of 225kg
 Queue FryerBatchA::waiting;
 bool FryerBatchA::active = false;
-
-
-// ------------------------------
 
 class FryerBatchB : public Process {
 public:
@@ -203,7 +184,7 @@ public:
         Enter(Peeler, 1); Wait(Uniform(20,60)); Leave(Peeler,1);
         weight *= M_PEEL;
 
-        // Spoilage
+        // Upon peeling 5% of potatoes are found to be spoiled
         if (Random() < 0.05) {
             sSpoiled(1);
             return;
@@ -216,18 +197,18 @@ public:
         // Drying
         Enter(Dryer, weight);
         Wait(Uniform(30,60));
-        Leave(Dryer, weight);   // <–– FIXED (was 1)
+        Leave(Dryer, weight);
         weight *= M_DRY;
 
+        // Frying - IMPROVEMENT_FRYER determines if improvement of fryer is used
         if (!IMPROVEMENT_FRYER) {
-            // ---- Fryer batch accumulation ----
+            // Fry 225kg batches
             FryerBatch::current_batch_mass += weight;
 
             // Enter waiting queue
-            before_fry += 1;
             Into(FryerBatch::waiting);
 
-            // If fryer not active & enough mass → wake it
+            // If fryer not active & enough mass -> wake it
             if (!FryerBatch::active &&
                 FryerBatch::current_batch_mass >= FryerBatch::BATCH_TARGET) 
             {
@@ -235,7 +216,6 @@ public:
                 FryerBatch *fb = new FryerBatch;
                 fb->Activate();
             }
-
             // Wait until fryer batch controller wakes us
             Passivate();
         } else {
@@ -265,7 +245,7 @@ public:
 
             } 
             else {
-                // Both inactive OR both active → balance by smaller queue
+                // Both inactive OR both active -> prioritize queue closer to completing a batch
                 if ((FryerBatchA::waiting.Length() >= FryerBatchB::waiting.Length() && ((FryerBatchA::current_batch_mass + weight) < FryerBatchA::BATCH_TARGET))) {
                     FryerBatchA::current_batch_mass += weight;
                     Into(FryerBatchA::waiting);
@@ -290,8 +270,7 @@ public:
 
         // After frying
         weight *= M_FRY;
-        after_fry += 1;
-        
+
         // Seasoning
         double r = Random();
         double seasonTime = Uniform(1,2);
@@ -301,20 +280,18 @@ public:
             Enter(SeasonerB, weight); Wait(seasonTime); Leave(SeasonerB, weight);
         } 
 
-        // ================= QUALITY CONTROL =================
+        // Quality Control 
         sTotalBeforeQC(1);
 
-        // True defect state (still 2% of all chips)
-        bool is_defect = (Random() < P_DEFECT_TRUE);
+        bool is_defect = (Random() < P_DEFECT_TRUE);   // 2% of chips are defective
 
+        // Manual inspection
         if (!AUTOMATED_QC) {
-            // ========= TIME-BASED MANUAL INSPECTION =========
-
             Store* chosenInspector;
             if (r < 0.5) chosenInspector = &QCInspectorA;
             else chosenInspector = &QCInspectorB;
 
-            // Try to enter inspector immediately (no waiting = skip if busy)
+            // If successfully enter inspector - begin check
             if (chosenInspector->Free() > 0) {
                 Enter(*chosenInspector, 1);
                 sQCInspected(1);
@@ -322,21 +299,19 @@ public:
                 Wait(1);
                 Leave(*chosenInspector, 1);
 
-                // Inspector ALWAYS correctly detects defect (your requirement)
                 if (is_defect) {
                     sQCRejected(1);
-                    return;   // removed from production
+                    return;   // Removed from line
                 }
-                // otherwise good chip passes normally
             }
             else {
-                // Inspector busy → chip is NOT inspected
+                // Inspector busy -> chip is NOT inspected
                 if (is_defect) {
-                    sQCEscapes(1);   // defect escapes due to congestion
+                    sQCEscapes(1);   // defect escaped due to not being chosen for inspection
                 }
             }
         } else {
-            // ========= AUTOMATED MACHINE INSPECTION =========
+            // Automated system QC
             sQCInspected(1);
 
             Store* qcLine = nullptr;
@@ -350,7 +325,7 @@ public:
             Wait(AUTO_QC_TIME);
             Leave(*qcLine, 1);
 
-            bool detected = (Random() < AUTO_ACCURACY);
+            bool detected = (Random() < AUTO_ACCURACY); // 99.5% accurate machine detection
 
             if (is_defect && detected) {
                 sQCRejected(1);
@@ -364,7 +339,6 @@ public:
 
         sTotalAFTERQC(1);
 
-
         // Packaging
         double packTime =Uniform(2,3);
         if (r < 0.5) {
@@ -377,11 +351,10 @@ public:
         sProcessed(1);
         hTotalTime(Time - startTime);
         finalmass += weight;
-        sFinalMass(weight);
     }
 };
 
-// --------------------------- EVENT ----------------------------
+// Event
 class PotatoGenerator : public Event {
     void Behavior() override {
         double weight = Uniform(100, 200);
@@ -391,16 +364,15 @@ class PotatoGenerator : public Event {
     }
 };
 
-// ---------------------------- MAIN ----------------------------
+
 int main() {
     std::cout << "=== IMS Potato Chip Production Simulation ===\n";
-    //RandomSeed(time(nullptr)); // Seed random number generator
 
     Init(0, SIM_TIME);
     (new PotatoGenerator)->Activate();
     Run();
 
-    std::cout << "\nSimulation complete.\n";
+    std::cout << "\nSimulation complete\n";
     
     sProcessed.Output();
     sSpoiled.Output();
@@ -428,6 +400,6 @@ int main() {
           sTotalAFTERQC.Output();
           
           SeasonerA.Output(); SeasonerB.Output();
-          PackagerA.Output(); PackagerB.Output();
-          std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";    
+          PackagerA.Output(); PackagerB.Output(); 
+          std::cout << std::fixed << std::setprecision(3) << "Final mass: " << finalmass/1000 << " kg\n";  
 }
