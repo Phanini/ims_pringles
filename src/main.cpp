@@ -14,8 +14,8 @@
 // --------------------- MASS & TIMING CONSTANTS ---------------------
 const double M_PEEL = 0.90;
 const double M_CUT  = 0.90;
-const double M_DRY  = 0.80;
-const double M_FRY  = 0.45;
+const double M_DRY  = 0.75;
+const double M_FRY  = 0.5;
 
 const double MEAN_INTERARRIVAL = 0.075;
 const double SIM_TIME = 3600.0;
@@ -26,7 +26,7 @@ double finalmass = 0.0;
 
 
 // SWITCHES FOR IMPROVEMENTS
-const bool IMPROVEMENT_FRYER = false;
+const bool IMPROVEMENT_FRYER = true;
 const bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
 
 
@@ -61,20 +61,14 @@ Store Dryer("Dryer", 70000);      // 70 kg raw cut chips
 Store Fryer("Fryer", 225000);     // 225 kg batch capacity
 Store FryerA("FryerA", 112500);   // Backup fryer
 Store FryerB("FryerB", 112500);   // Backup fryer
-Store SeasonerA("Seasoner", 400);
-Store SeasonerB("Seasoner", 400);
-Store SeasonerC("Seasoner", 400);
-Store SeasonerD("Seasoner", 400);
+Store SeasonerA("Seasoner", 800);
+Store SeasonerB("Seasoner", 800);
 
 Store QCInspectorA("QC_A", 1);
 Store QCInspectorB("QC_B", 1);
-Store QCInspectorC("QC_C", 1);
-Store QCInspectorD("QC_D", 1);
 
-Store PackagerA("Packager", 400);
-Store PackagerB("Packager", 400);
-Store PackagerC("Packager", 400);
-Store PackagerD("Packager", 400);
+Store PackagerA("Packager", 800);
+Store PackagerB("Packager", 800);
 
 // ------------------------- STATISTICS -------------------------
 Histogram hTotalTime("Total time per potato batch", 0, 1200, 24);
@@ -301,15 +295,11 @@ public:
         // Seasoning
         double r = Random();
         double seasonTime = Uniform(1,2);
-        if (r < 0.25) {
+        if (r < 0.5) {
             Enter(SeasonerA, weight); Wait(seasonTime); Leave(SeasonerA, weight);
-        } else if (r < 0.5) {
-            Enter(SeasonerB, weight); Wait(seasonTime); Leave(SeasonerB, weight);
-        } else if (r < 0.75) {
-            Enter(SeasonerC, weight); Wait(seasonTime); Leave(SeasonerC, weight);
         } else {
-            Enter(SeasonerD, weight); Wait(seasonTime); Leave(SeasonerD, weight);
-        }
+            Enter(SeasonerB, weight); Wait(seasonTime); Leave(SeasonerB, weight);
+        } 
 
         // ================= QUALITY CONTROL =================
         sTotalBeforeQC(1);
@@ -321,17 +311,15 @@ public:
             // ========= TIME-BASED MANUAL INSPECTION =========
 
             Store* chosenInspector;
-            if (r < 0.25) chosenInspector = &QCInspectorA;
-            else if (r < 0.5) chosenInspector = &QCInspectorB;
-            else if (r < 0.75) chosenInspector = &QCInspectorC;
-            else chosenInspector = &QCInspectorD;
+            if (r < 0.5) chosenInspector = &QCInspectorA;
+            else chosenInspector = &QCInspectorB;
 
             // Try to enter inspector immediately (no waiting = skip if busy)
             if (chosenInspector->Free() > 0) {
                 Enter(*chosenInspector, 1);
                 sQCInspected(1);
 
-                Wait(1.5);
+                Wait(1);
                 Leave(*chosenInspector, 1);
 
                 // Inspector ALWAYS correctly detects defect (your requirement)
@@ -352,15 +340,11 @@ public:
             sQCInspected(1);
 
             Store* qcLine = nullptr;
-            if (r < 0.25) {
+            if (r < 0.5) {
                 qcLine = &QCInspectorA;
-            } else if (r < 0.5) {
-                qcLine = &QCInspectorB;
-            } else if (r < 0.75) {
-                qcLine = &QCInspectorC;
             } else {
-                qcLine = &QCInspectorD;
-            }
+                qcLine = &QCInspectorB;
+            } 
 
             Enter(*qcLine, 1);
             Wait(AUTO_QC_TIME);
@@ -383,14 +367,10 @@ public:
 
         // Packaging
         double packTime =Uniform(2,3);
-        if (r < 0.25) {
+        if (r < 0.5) {
             Enter(PackagerA, weight); Wait(packTime); Leave(PackagerA, weight);
-        } else if (r < 0.5) {
-            Enter(PackagerB, weight); Wait(packTime); Leave(PackagerB, weight);
-        } else if (r < 0.75) {
-            Enter(PackagerC, weight); Wait(packTime); Leave(PackagerC, weight);
         } else {
-            Enter(PackagerD, weight); Wait(packTime); Leave(PackagerD, weight);
+            Enter(PackagerB, weight); Wait(packTime); Leave(PackagerB, weight);
         }
 
         // End
@@ -430,12 +410,12 @@ int main() {
     sQCRejected.Output();
     sQCEscapes.Output();
 
-    /*Washer.Output(); 
+    Washer.Output(); 
     Peeler.Output(); 
     Cutter.Output();
     Dryer.Output(); 
-    */
-   //Fryer.Output(); FryerBatch::waiting.Output();
+    
+    Fryer.Output(); FryerBatch::waiting.Output();
    
     if (!IMPROVEMENT_FRYER){    
        std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";}
@@ -447,7 +427,7 @@ int main() {
           sTotalBeforeQC.Output();
           sTotalAFTERQC.Output();
           
-          SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
-          PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();
+          SeasonerA.Output(); SeasonerB.Output();
+          PackagerA.Output(); PackagerB.Output();
           std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";    
 }
