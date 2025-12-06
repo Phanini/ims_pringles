@@ -1,3 +1,12 @@
+/**
+ * @file    main.cpp
+ * @author  Anastasiia Chumachenko - xchuma00
+ * @author  Jakub Phan - xphanj00
+ * @brief   Main file controling the simulation.
+ * @date    2025-11-01
+ */
+
+
 #include <iostream>
 #include <simlib.h>
 #include <iomanip>
@@ -6,7 +15,7 @@
 const double M_PEEL = 0.90;
 const double M_CUT  = 0.90;
 const double M_DRY  = 0.80;
-const double M_FRY  = 0.40;
+const double M_FRY  = 0.45;
 
 const double MEAN_INTERARRIVAL = 0.075;
 const double SIM_TIME = 3600.0;
@@ -291,7 +300,7 @@ public:
         
         // Seasoning
         double r = Random();
-        double seasonTime = Uniform(1,4);
+        double seasonTime = Uniform(1,2);
         if (r < 0.25) {
             Enter(SeasonerA, weight); Wait(seasonTime); Leave(SeasonerA, weight);
         } else if (r < 0.5) {
@@ -302,49 +311,60 @@ public:
             Enter(SeasonerD, weight); Wait(seasonTime); Leave(SeasonerD, weight);
         }
 
-       // ================= QUALITY CONTROL =================
+        // ================= QUALITY CONTROL =================
         sTotalBeforeQC(1);
+
+        // True defect state (still 2% of all chips)
         bool is_defect = (Random() < P_DEFECT_TRUE);
 
         if (!AUTOMATED_QC) {
-            // ========= MANUAL HUMAN INSPECTION =========
-            bool inspected = (Random() < MANUAL_SAMPLE_RATE);
+            // ========= TIME-BASED MANUAL INSPECTION =========
 
-            if (inspected) {
+            Store* chosenInspector;
+            if (r < 0.25) chosenInspector = &QCInspectorA;
+            else if (r < 0.5) chosenInspector = &QCInspectorB;
+            else if (r < 0.75) chosenInspector = &QCInspectorC;
+            else chosenInspector = &QCInspectorD;
+
+            // Try to enter inspector immediately (no waiting = skip if busy)
+            if (chosenInspector->Free() > 0) {
+                Enter(*chosenInspector, 1);
                 sQCInspected(1);
 
-                // Choose inspector
-                if (r < 0.25) {
-                    Enter(QCInspectorA, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorA, 1);
-                } else if (r < 0.5) {
-                    Enter(QCInspectorB, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorB, 1);
-                } else if (r < 0.75) {
-                    Enter(QCInspectorC, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorC, 1);
-                } else {
-                    Enter(QCInspectorD, 1); Wait(Uniform(MANUAL_QC_TIME_MIN, MANUAL_QC_TIME_MAX)); Leave(QCInspectorD, 1);
-                }
+                Wait(1.5);
+                Leave(*chosenInspector, 1);
 
-                bool detected = (Random() < MANUAL_ACCURACY);
-
-                if (is_defect && detected) {
+                // Inspector ALWAYS correctly detects defect (your requirement)
+                if (is_defect) {
                     sQCRejected(1);
-                    return;   // removed
+                    return;   // removed from production
                 }
-
-                if (!is_defect && detected) {
-                    sQCNoDefect(1); // false reject
-                }
-
-            } else {
-                if (is_defect) sQCEscapes(1); // defect passed because not inspected
+                // otherwise good chip passes normally
             }
-
+            else {
+                // Inspector busy → chip is NOT inspected
+                if (is_defect) {
+                    sQCEscapes(1);   // defect escapes due to congestion
+                }
+            }
         } else {
             // ========= AUTOMATED MACHINE INSPECTION =========
             sQCInspected(1);
 
-            // Machine vision delay (very small)
+            Store* qcLine = nullptr;
+            if (r < 0.25) {
+                qcLine = &QCInspectorA;
+            } else if (r < 0.5) {
+                qcLine = &QCInspectorB;
+            } else if (r < 0.75) {
+                qcLine = &QCInspectorC;
+            } else {
+                qcLine = &QCInspectorD;
+            }
+
+            Enter(*qcLine, 1);
             Wait(AUTO_QC_TIME);
+            Leave(*qcLine, 1);
 
             bool detected = (Random() < AUTO_ACCURACY);
 
@@ -353,8 +373,8 @@ public:
                 return;   // removed by machine
             }
 
-            if (!is_defect && detected == false) {
-                sQCEscapes(1); // extremely rare miss
+            if (is_defect && !detected) {
+                sQCEscapes(1);   // extremely rare miss
             }
         }
 
@@ -362,7 +382,7 @@ public:
 
 
         // Packaging
-        double packTime = Uniform(2,3);
+        double packTime =Uniform(2,3);
         if (r < 0.25) {
             Enter(PackagerA, weight); Wait(packTime); Leave(PackagerA, weight);
         } else if (r < 0.5) {
@@ -394,37 +414,40 @@ class PotatoGenerator : public Event {
 // ---------------------------- MAIN ----------------------------
 int main() {
     std::cout << "=== IMS Potato Chip Production Simulation ===\n";
-    RandomSeed(time(nullptr)); // Seed random number generator
+    //RandomSeed(time(nullptr)); // Seed random number generator
 
     Init(0, SIM_TIME);
     (new PotatoGenerator)->Activate();
     Run();
 
     std::cout << "\nSimulation complete.\n";
-    std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";
-    if (!IMPROVEMENT_FRYER){    
-        std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";}
-    else {
-        std::cout << "A: " << FryerBatchA::waiting.Length() << "B: " << FryerBatchB::waiting.Length() << " potatoes waiting for frying combined AB.\n";}
-    FryerA.Output();
-    FryerB.Output();
     
-        
     sProcessed.Output();
     sSpoiled.Output();
     sPotatoesGenerated.Output();
-    sTotalBeforeQC.Output();
-    sTotalAFTERQC.Output();
+    
     sQCInspected.Output();
     sQCRejected.Output();
-    sQCNoDefect.Output();
     sQCEscapes.Output();
 
-    /*Washer.Output(); Peeler.Output(); Cutter.Output();
+    /*Washer.Output(); 
+    Peeler.Output(); 
+    Cutter.Output();
     Dryer.Output(); 
-
-    Fryer.Output(); FryerBatch::waiting.Output();
-
-    SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
-    PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();*/
+    */
+   //Fryer.Output(); FryerBatch::waiting.Output();
+   
+    if (!IMPROVEMENT_FRYER){    
+       std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";}
+       else {
+           std::cout << "A: " << FryerBatchA::waiting.Length() << "B: " << FryerBatchB::waiting.Length() << " potatoes waiting for frying combined AB.\n";}
+           /*  FryerA.Output();
+           FryerB.Output();
+           */
+          sTotalBeforeQC.Output();
+          sTotalAFTERQC.Output();
+          
+          SeasonerA.Output(); SeasonerB.Output(); SeasonerC.Output(); SeasonerD.Output();
+          PackagerA.Output(); PackagerB.Output(); PackagerC.Output(); PackagerD.Output();
+          std::cout << std::setprecision(17) << "Final mass: " << finalmass/1000 << " kg\n";    
 }
