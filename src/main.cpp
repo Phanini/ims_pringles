@@ -10,10 +10,11 @@
 #include <iostream>
 #include <simlib.h>
 #include <iomanip>
+#include <string>
 
 // SWITCHES FOR IMPROVEMENTS
-const bool IMPROVEMENT_FRYER = true;
-const bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
+bool IMPROVEMENT_FRYER = true;
+bool AUTOMATED_QC = true;   // true = machine vision, false = human inspector
 
 // CONSTANTS
 const double MEAN_INTERARRIVAL = 0.075;
@@ -24,9 +25,7 @@ const double M_CUT  = 0.90;
 const double M_DRY  = 0.75;
 const double M_FRY  = 0.5;
 
-const double P_DEFECT_TRUE = 0.02; // 2% of potatoes have defects
-const double MANUAL_QC_TIME_MIN = 1.0;
-const double MANUAL_QC_TIME_MAX = 2.0;
+const double P_DEFECT_TRUE      = 0.02; // 2% of potatoes have defects
 const double AUTO_ACCURACY      = 0.995; 
 const double AUTO_QC_TIME       = 0.15;
 
@@ -365,9 +364,50 @@ class PotatoGenerator : public Event {
 };
 
 
-int main() {
+int main(int argc, char *argv[]) {
     std::cout << "=== IMS Potato Chip Production Simulation ===\n";
 
+    // --- Parse CLI arguments ---
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0] << " <fryer_mode> <qc_mode>\n";
+        std::cerr << "  fryer_mode:  basic | improved\n";
+        std::cerr << "  qc_mode:     auto | manual\n";
+        return 1;
+    }
+
+    std::string fryerMode = argv[1];
+    std::string qcMode    = argv[2];
+
+    // Fryer mode
+    if (fryerMode == "basic") {
+        IMPROVEMENT_FRYER = false;
+    } else if (fryerMode == "improved") {
+        IMPROVEMENT_FRYER = true;
+    } else {
+        std::cerr << "Invalid fryer_mode: " << fryerMode << "\n";
+        std::cerr << "Allowed: basic | improved\n";
+        return 1;
+    }
+
+    // QC mode
+    if (qcMode == "auto") {
+        AUTOMATED_QC = true;
+    } else if (qcMode == "manual") {
+        AUTOMATED_QC = false;
+    } else {
+        std::cerr << "Invalid qc_mode: " << qcMode << "\n";
+        std::cerr << "Allowed: auto | manual\n";
+        return 1;
+    }
+
+    std::cout << "Selected fryer mode: " 
+              << (IMPROVEMENT_FRYER ? "improved (two fryers)" : "basic (single fryer)") 
+              << "\n";
+    std::cout << "Selected QC mode: " 
+              << (AUTOMATED_QC ? "automatic QC" : "manual QC") 
+              << "\n\n";
+
+    // --- Simulation setup ---
     Init(0, SIM_TIME);
     (new PotatoGenerator)->Activate();
     Run();
@@ -387,19 +427,29 @@ int main() {
     Cutter.Output();
     Dryer.Output(); 
     
-    Fryer.Output(); FryerBatch::waiting.Output();
-   
     if (!IMPROVEMENT_FRYER){    
-       std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";}
-       else {
-           std::cout << "A: " << FryerBatchA::waiting.Length() << "B: " << FryerBatchB::waiting.Length() << " potatoes waiting for frying combined AB.\n";}
-           /*  FryerA.Output();
-           FryerB.Output();
-           */
-          sTotalBeforeQC.Output();
-          sTotalAFTERQC.Output();
-          
-          SeasonerA.Output(); SeasonerB.Output();
-          PackagerA.Output(); PackagerB.Output(); 
-          std::cout << std::fixed << std::setprecision(3) << "Final mass: " << finalmass/1000 << " kg\n";  
+       std::cout << FryerBatch::waiting.Length() << " potatoes waiting for frying.\n";
+        Fryer.Output();
+        FryerBatch::waiting.Output();
+    }
+    else {
+        std::cout << "A: " << FryerBatchA::waiting.Length()
+                  << " B: " << FryerBatchB::waiting.Length()
+                  << " potatoes waiting for frying combined AB.\n";
+        FryerA.Output();
+        FryerB.Output();
+    }
+
+    sTotalBeforeQC.Output();
+    sTotalAFTERQC.Output();
+    
+    SeasonerA.Output(); 
+    SeasonerB.Output();
+    PackagerA.Output(); 
+    PackagerB.Output(); 
+
+    std::cout << std::fixed << std::setprecision(3)
+              << "Final mass: " << finalmass/1000 << " kg\n";
+
+    return 0;
 }
