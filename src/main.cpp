@@ -371,7 +371,7 @@ int main(int argc, char *argv[]) {
     if (argc != 3) {
         std::cerr << "Usage: " << argv[0] << " <fryer_mode> <qc_mode>\n";
         std::cerr << "  fryer_mode:  basic | improved\n";
-        std::cerr << "  qc_mode:     auto | manual\n";
+        std::cerr << "  qc_mode:     manual | auto\n";
         return 1;
     }
 
@@ -396,7 +396,7 @@ int main(int argc, char *argv[]) {
         AUTOMATED_QC = false;
     } else {
         std::cerr << "Invalid qc_mode: " << qcMode << "\n";
-        std::cerr << "Allowed: auto | manual\n";
+        std::cerr << "Allowed: manual | auto\n";
         return 1;
     }
 
