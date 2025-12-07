@@ -17,4 +17,4 @@ $(TARGET): $(SRC)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET) OBJ = $(OBJ)
+	rm -f $(TARGET) $(OBJ)
